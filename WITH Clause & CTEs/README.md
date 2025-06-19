@@ -1,147 +1,148 @@
-# 🪟 SQL Window Functions – Explained with Real Sales Data
+# 📦 WITH Clause & CTEs (Common Table Expressions) in SQL
 
-Window functions allow you to perform **calculations across rows related to the current row**, without collapsing them like `GROUP BY`. Perfect for **ranking, comparisons, running totals**, and more.
-
----
-
-## 🧱 Sample Table: `sales`
-
-| sale_id | emp_name | region | amount |
-|---------|----------|--------|--------|
-| 1       | Akhil    | South  | 5000   |
-| 2       | Akhil    | South  | 8000   |
-| 3       | Priya    | North  | 6000   |
-| 4       | Priya    | North  | 7500   |
-| 5       | Karan    | East   | 4000   |
-| 6       | Karan    | East   | 9000   |
-| 7       | Sneha    | West   | 8500   |
-| 8       | Sneha    | West   | 8500   |
+A **CTE (Common Table Expression)** is a named temporary result set that you can reference within a `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement. It makes queries **modular, readable**, and enables **recursive logic**.
 
 ---
 
-## 🔢 `ROW_NUMBER()`
-
-Assigns a **unique row number** within a partition (based on order).
+## 🧠 Syntax
 
 ```sql
-SELECT emp_name, region, amount,
-  ROW_NUMBER() OVER(PARTITION BY emp_name ORDER BY amount DESC) AS row_num
-FROM sales;
+WITH cte_name AS (
+    SELECT ...
+)
+SELECT * FROM cte_name;
 ```
-
-📌 Use for pagination or picking *Nth highest* row.
 
 ---
 
-## 🏅 `RANK()`
+## ✅ Use Cases
 
-Ranks rows within a partition, **skips numbers** when ties occur.
+- Simplify complex logic
+- Reuse intermediate query results
+- Perform recursive operations (like hierarchies, trees)
+- Replace subqueries for better readability
+
+---
+
+## 🧱 Sample Data
+
+### Table: `employees`
+
+| emp_id | emp_name | department_id | salary |
+|--------|----------|---------------|--------|
+| 1      | Akhil    | 101           | 60000  |
+| 2      | Priya    | 101           | 75000  |
+| 3      | Karan    | 102           | 50000  |
+| 4      | Sneha    | 103           | 90000  |
+| 5      | Neha     | 103           | 60000  |
+
+---
+
+## 🔹 Example 1: Simple CTE – High Earners
 
 ```sql
-SELECT emp_name, region, amount,
-  RANK() OVER(PARTITION BY region ORDER BY amount DESC) AS rnk
-FROM sales;
+WITH HighEarners AS (
+    SELECT emp_id, emp_name, salary
+    FROM employees
+    WHERE salary > 60000
+)
+SELECT * FROM HighEarners;
 ```
 
-📌 Use when ties matter, and you need gaps.
+📌 Employees earning more than ₹60,000.
+
+🧾 Output:
+
+| emp_id | emp_name | salary |
+|--------|----------|--------|
+| 2      | Priya    | 75000  |
+| 4      | Sneha    | 90000  |
 
 ---
 
-## 🥈 `DENSE_RANK()`
-
-Ranks rows like `RANK()` but **no gaps** in ranking.
+## 🔹 Example 2: CTE with Aggregation
 
 ```sql
-SELECT emp_name, region, amount,
-  DENSE_RANK() OVER(PARTITION BY region ORDER BY amount DESC) AS dense_rnk
-FROM sales;
+WITH DepartmentSalary AS (
+    SELECT department_id, AVG(salary) AS avg_salary
+    FROM employees
+    GROUP BY department_id
+)
+SELECT * FROM DepartmentSalary
+WHERE avg_salary > 60000;
 ```
 
-📌 Ideal when you want continuous ranking (e.g., 1, 2, 2, 3).
+🧾 Output:
+
+| department_id | avg_salary |
+|---------------|------------|
+| 101           | 67500      |
+| 103           | 75000      |
 
 ---
 
-## 🔮 `LEAD()`
-
-Accesses the **next row’s** value from the current row.
+## 🔹 Example 3: Chained CTE – Above Avg Employees
 
 ```sql
-SELECT emp_name, region, amount,
-  LEAD(amount) OVER(PARTITION BY emp_name ORDER BY amount) AS next_sale
-FROM sales;
+WITH DeptAvg AS (
+    SELECT department_id, AVG(salary) AS avg_salary
+    FROM employees
+    GROUP BY department_id
+),
+AboveAvgEmps AS (
+    SELECT e.emp_id, e.emp_name, e.salary, d.avg_salary
+    FROM employees e
+    JOIN DeptAvg d ON e.department_id = d.department_id
+    WHERE e.salary > d.avg_salary
+)
+SELECT * FROM AboveAvgEmps;
 ```
 
-📌 Use for comparing current vs future values.
+🧾 Output:
+
+| emp_id | emp_name | salary | avg_salary |
+|--------|----------|--------|------------|
+| 2      | Priya    | 75000  | 67500      |
+| 4      | Sneha    | 90000  | 75000      |
 
 ---
 
-## 🧭 `LAG()`
-
-Accesses the **previous row’s** value.
+## 🔁 Example 4: Recursive CTE – Fibonacci (first 5 terms)
 
 ```sql
-SELECT emp_name, region, amount,
-  LAG(amount) OVER(PARTITION BY emp_name ORDER BY amount) AS prev_sale
-FROM sales;
+WITH RECURSIVE fib(n, value) AS (
+    SELECT 1, 0
+    UNION ALL
+    SELECT 2, 1
+    UNION ALL
+    SELECT n + 1,
+        (SELECT value FROM fib WHERE n = fib.n - 1) + 
+        (SELECT value FROM fib WHERE n = fib.n - 2)
+    WHERE n < 5
+)
+SELECT * FROM fib;
 ```
 
-📌 Use for change calculations or trend analysis.
+🧾 Output:
+
+| n | value |
+|---|-------|
+| 1 | 0     |
+| 2 | 1     |
+| 3 | 1     |
+| 4 | 2     |
+| 5 | 3     |
+
+*Note: Recursive queries vary slightly based on the SQL engine you use. This form may need slight adjustments in MySQL.*
 
 ---
 
-## 🎲 `NTILE(n)`
+## 💎 Benefits of Using CTEs
 
-Divides result set into `n` buckets.
-
-```sql
-SELECT emp_name, region, amount,
-  NTILE(2) OVER(ORDER BY amount DESC) AS half_bucket
-FROM sales;
-```
-
-📌 Use for percentile, quartile, or ranking-based banding.
-
----
-
-## 💰 `SUM() OVER(PARTITION BY ...)`
-
-Calculates **running total** or totals by group without collapsing rows.
-
-```sql
-SELECT emp_name, region, amount,
-  SUM(amount) OVER(PARTITION BY emp_name ORDER BY sale_id) AS running_total
-FROM sales;
-```
-
-📌 Running totals or rolling aggregates.
-
----
-
-## 🌍 `SUM() OVER()` (No PARTITION)
-
-Calculates **total across all rows**.
-
-```sql
-SELECT emp_name, region, amount,
-  SUM(amount) OVER() AS grand_total
-FROM sales;
-```
-
-📌 Every row will have the same grand total.
-
----
-
-## 🧠 Summary Table
-
-| Function       | Use Case                               |
-|----------------|------------------------------------------|
-| `ROW_NUMBER()` | Unique row ID per partition              |
-| `RANK()`       | Rank with gaps for ties                  |
-| `DENSE_RANK()` | Rank without gaps for ties               |
-| `LEAD()`       | Fetch value from next row                |
-| `LAG()`        | Fetch value from previous row            |
-| `NTILE(n)`     | Divide data into n evenly distributed buckets |
-| `SUM() OVER()` | Running or grand total                   |
+- ✅ Easier to understand than nested subqueries
+- ✅ Helps in debugging step-by-step
+- ✅ Cleaner when chaining logic
+- ✅ Enables recursion for hierarchical or looping operations
 
 ---
 
