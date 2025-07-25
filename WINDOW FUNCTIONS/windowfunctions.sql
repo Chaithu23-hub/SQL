@@ -2,7 +2,7 @@
 CREATE TABLE sales (
     sale_id INT,
     emp_name VARCHAR(100),
-    region VARCHAR(50)
+    region VARCHAR(50),
     amount INT
 );
 
